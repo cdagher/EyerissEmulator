@@ -1,0 +1,2 @@
+class NoC:
+    pass

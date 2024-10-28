@@ -1,0 +1,2 @@
+class ScanChain:
+    pass
