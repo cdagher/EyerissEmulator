@@ -46,9 +46,11 @@ class _MemoryProc(mp.Process):
 
         self._bits = np.zeros((words, wordSize), dtype=np.bool)
 
+    @property
     def words(self):
         return self._bits.shape[0]
     
+    @property
     def wordSize(self):
         return self._bits.shape[1]
 
@@ -97,7 +99,9 @@ class Memory:
 
     _words: int
     _wordSize: int
-    _read_latency: float
+
+    _read_latency: float # read latency in seconds
+    _energy: float       # energy in Joules
 
     _proc: _MemoryProc
     _inqueue: mp.Queue
@@ -107,12 +111,14 @@ class Memory:
             self,
             words: int,
             wordSize: int,
-            read_latency: float
+            read_latency: float,
+            energy: float
         ):
         self._words = words
         self._wordSize = wordSize
 
         self._read_latency = read_latency
+        self._energy = energy
 
         self._inqueue = mp.Queue()
         self._outqueue = mp.Queue()
@@ -141,11 +147,21 @@ class Memory:
         self._inqueue.close()
         self._outqueue.close()
 
+    @property
     def size(self):
         return self._words, self._wordSize
     
+    @property
     def bits(self):
         return self._words * self._wordSize
+    
+    @property
+    def read_latency(self):
+        return self._read_latency
+
+    @property
+    def energy(self):
+        return self._energy
 
 class SPAD(Memory):
     """
@@ -156,7 +172,35 @@ class SPAD(Memory):
     """
 
     READ_LATENCY = 1e-9 # 1 ns
+    ENERGY = 1e-12 # 1 pJ
 
     def __init__(self, words: int, wordSize: int):
-        super().__init__(words, wordSize, self.READ_LATENCY)
-    
+        super().__init__(words, wordSize, self.READ_LATENCY, self.ENERGY)
+
+class GlobalBuffer(Memory):
+    """
+    Global buffer memory class.
+
+    Attributes:
+        READ_LATENCY (float): Read latency for global buffer.
+    """
+
+    READ_LATENCY = 5e-9 # 1 ns
+    ENERGY = 5e-12 # 1 pJ
+
+    def __init__(self, words: int, wordSize: int):
+        super().__init__(words, wordSize, self.READ_LATENCY, self.ENERGY)
+
+class DRAM(Memory):
+    """
+    Dynamic random-access memory (DRAM) class.
+
+    Attributes:
+        READ_LATENCY (float): Read latency for DRAM.
+    """
+
+    READ_LATENCY = 1e-6 # 1 us
+    ENERGY = 500e-12 # 500 pJ
+
+    def __init__(self, words: int, wordSize: int):
+        super().__init__(words, wordSize, self.READ_LATENCY, self.ENERGY)
