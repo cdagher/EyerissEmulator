@@ -1,3 +1,5 @@
+from typing import override
+
 import multiprocessing as mp
 
 import numpy as np
@@ -54,6 +56,7 @@ class _MemoryProc(mp.Process):
     def wordSize(self):
         return self._bits.shape[1]
 
+    @override
     def run(self):
         while True:
             # Wait for a command from the main process
@@ -152,6 +155,10 @@ class Memory:
         return self._words, self._wordSize
     
     @property
+    def shape(self):
+        return (self._words, self._wordSize)
+    
+    @property
     def bits(self):
         return self._words * self._wordSize
     
@@ -188,8 +195,8 @@ class GlobalBuffer(Memory):
     READ_LATENCY = 5e-9 # 1 ns
     ENERGY = 5e-12 # 1 pJ
 
-    def __init__(self, words: int, wordSize: int):
-        super().__init__(words, wordSize, self.READ_LATENCY, self.ENERGY)
+    def __init__(self, blocks: int = 25, blockSize: int = 4096):
+        super().__init__(blocks, blockSize, self.READ_LATENCY, self.ENERGY)
 
 class DRAM(Memory):
     """
