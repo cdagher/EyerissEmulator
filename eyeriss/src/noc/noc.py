@@ -1,4 +1,4 @@
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 
 from src.memory import GlobalBuffer
 from src.data import Data
@@ -83,7 +83,10 @@ class NoC:
         for pe in self:
             pe.close()
 
-    def multicast(self, data: Data):
+    def multicast(
+            self,
+            data: Data,
+            to: Optional[List[PE]] = None):
         """
         Multicasts data to all PEs.
 
@@ -91,8 +94,13 @@ class NoC:
             data (Data): Data to multicast.
         """
         
-        for pe in self:
-            pe.put(data)
+        if to is not None:
+            for pe in self:
+                pe.put(data)
+
+        else:
+            for pe in to:
+                pe.put(data)
 
     def p2p(self, src: Tuple[int, int], dst: Tuple[int, int]):
         """
