@@ -1,4 +1,4 @@
-from typing import override
+from typing import List, override
 
 import multiprocessing as mp
 
@@ -7,6 +7,7 @@ import numpy as np
 import time
 from time import sleep
 
+from src.data import Data, Address
 
 class _MemoryProc(mp.Process):
     """
@@ -24,8 +25,8 @@ class _MemoryProc(mp.Process):
         words(): Returns the number of words in memory.
         wordSize(): Returns the size of each word in memory.
     """
-    _queue_in: mp.Queue
-    _queue_out: mp.Queue
+    _queue_in: mp.Queue[Data]
+    _queue_out: mp.Queue[Data]
 
     _read_latency: float
 
@@ -73,7 +74,7 @@ class _MemoryProc(mp.Process):
                 # Simulate read latency
                 sleep(self._read_latency)
                 self._queue_out.put(data)
-class Memory:
+class MemoryBlock:
     """
     Memory class for managing read and write operations.
 
@@ -94,10 +95,14 @@ class Memory:
         join(): Waits for the memory process to finish.
         terminate(): Terminates the memory process.
         close(): Closes the input and output queues.
-        size() -> tuple:
+        shape() -> tuple:
             Returns the size of the memory (number of words and word size).
         bits() -> int:
             Returns the total number of bits in memory.
+        read_latency() -> float:
+            Returns the read latency for the memory in seconds.
+        energy() -> float:
+            Returns the energy consumption for the memory.
     """
 
     _words: int
@@ -149,14 +154,10 @@ class Memory:
     def close(self):
         self._inqueue.close()
         self._outqueue.close()
-
-    @property
-    def size(self):
-        return self._words, self._wordSize
     
     @property
     def shape(self):
-        return (self._words, self._wordSize)
+        return self._words, self._wordSize
     
     @property
     def bits(self):
@@ -170,6 +171,63 @@ class Memory:
     def energy(self):
         return self._energy
 
+class Memory:
+    """
+    Memory class for managing multiple memory blocks.
+
+    Attributes:
+        _blocks (List[MemoryBlock]): List of memory blocks.
+
+    Methods:
+        read(address: Address) -> int:
+            Reads data from the specified address.
+        write(address: Address, data: np.ndarray):
+            Writes data to the specified address.
+        shape() -> tuple:
+            Returns the shape of the memory (number of blocks and block size).
+        bits() -> int:
+            Returns the total number of bits in memory.
+        read_latency() -> float:
+            Returns the read latency for the memory in seconds.
+        energy() -> float:
+            Returns the energy consumption for the memory.
+    """
+
+    _blocks: List[MemoryBlock]
+
+    def __init__(self, blocks: List[MemoryBlock]):
+        self._blocks = blocks
+
+    def read(self, address: Address) -> int:
+        # Implement read logic for multiple blocks
+        pass
+
+    def write(self, address: Address, data: np.ndarray):
+        # Implement write logic for multiple blocks
+        pass
+
+    def __getitem__(self, index: int) -> MemoryBlock:
+        return self._blocks[index]
+
+    def __len__(self) -> int:
+        return len(self._blocks)
+    
+    @property
+    def shape(self):
+        return (len(self._blocks), self._blocks[0].shape)
+    
+    @property
+    def bits(self):
+        return sum(block.bits for block in self._blocks)
+    
+    @property
+    def read_latency(self):
+        return self._blocks[0].read_latency
+
+    @property
+    def energy(self):
+        return self._blocks[0].energy
+
 class SPAD(Memory):
     """
     Scratchpad memory (SPAD) class.
@@ -182,7 +240,8 @@ class SPAD(Memory):
     ENERGY = 1e-12 # 1 pJ
 
     def __init__(self, words: int, wordSize: int):
-        super().__init__(words, wordSize, self.READ_LATENCY, self.ENERGY)
+        block = MemoryBlock(words, wordSize, self.READ_LATENCY, self.ENERGY)
+        super().__init__([block])
 
 class GlobalBuffer(Memory):
     """
@@ -192,11 +251,12 @@ class GlobalBuffer(Memory):
         READ_LATENCY (float): Read latency for global buffer.
     """
 
-    READ_LATENCY = 5e-9 # 1 ns
-    ENERGY = 5e-12 # 1 pJ
+    READ_LATENCY = 5e-9 # 5 ns
+    ENERGY = 5e-12 # 5 pJ
 
-    def __init__(self, blocks: int = 25, blockSize: int = 4096):
-        super().__init__(blocks, blockSize, self.READ_LATENCY, self.ENERGY)
+    def __init__(self, blocks: int = 25, blockSize: int = 4096, wordSize: int = 16):
+        blocks = [MemoryBlock(blockSize, wordSize, self.READ_LATENCY, self.ENERGY) for _ in range(blocks)]
+        super().__init__(blocks)
 
 class DRAM(Memory):
     """
@@ -209,5 +269,32 @@ class DRAM(Memory):
     READ_LATENCY = 1e-6 # 1 us
     ENERGY = 500e-12 # 500 pJ
 
-    def __init__(self, words: int, wordSize: int):
-        super().__init__(words, wordSize, self.READ_LATENCY, self.ENERGY)
+    _pages: int
+
+    def __init__(self, pages: int = 4, blocks: int = 16, blockSize: int = 4096, wordSize: int = 16):
+        self._pages = pages
+        page_blocks = [[MemoryBlock(blockSize, wordSize, self.READ_LATENCY, self.ENERGY) for _ in range(blocks)] for _ in range(pages)]
+        super().__init__(page_blocks)
+
+    @override
+    def read(self, address: Address) -> int:
+        if address.shape != 3:
+            raise ValueError("Address must have 3 dimensions: (page, block, word)")
+        page, block, word = address
+        pg_blocks = self._blocks[0].shape[0]
+
+        return self._blocks[page * pg_blocks].read(Address((block, word)))
+
+    @override
+    def write(self, address: Address, data: np.ndarray):
+        if address.shape != 3:
+            raise ValueError("Address must have 3 dimensions: (page, block, word)")
+        page, block, word = address
+        pg_blocks = self._blocks[0].shape[0]
+
+        self._blocks[page * pg_blocks].write(Address((block, word)), data)
+
+    @override
+    def __getitem__(self, index: int) -> List[MemoryBlock]:
+        return self._blocks[index]
+

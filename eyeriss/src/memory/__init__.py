@@ -1,2 +1,2 @@
-from memory import Memory, SPAD, DRAM, GlobalBuffer
+from memory import MemoryBlock, SPAD, DRAM, GlobalBuffer
 from hierarchy import Hierarchy
