@@ -1,17 +1,19 @@
-from src import Instruction
+from typing import Optional
+
+from src.instr import BaseInstr
 
 import numpy as np
 
 class Data:
-    _instr: Instruction
+    _instr: BaseInstr
     _data: np.ndarray
 
-    def __init__(self, instr: int, data: int):
+    def __init__(self, instr: int, data: Optional[int] = None):
         self._instr = instr
         self._data = data
 
     @property
-    def instr(self) -> Instruction:
+    def instr(self) -> BaseInstr:
         return self._instr
     
     @property
@@ -35,5 +37,5 @@ class Data:
         return NotImplemented
     
     def __str__(self) -> str:
-        return f"Data(instr={self._instr}, data={self._data})"
+        return f"Data(instr={self._instr}\n\tdata={self._data})"
     
