@@ -1,1 +1,1 @@
-from noc import NoC
+from .noc import NoC

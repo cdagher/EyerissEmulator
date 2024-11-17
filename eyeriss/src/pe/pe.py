@@ -2,10 +2,24 @@ from typing import override
 
 import multiprocessing as mp
 
-from src import Instruction
-
+from src.instr import (
+    TerminateInstr,
+    ComputeInstr,
+    PEWriteFilterInstr,
+    PEWriteIfmapInstr,
+    PEWritePsumInstr,
+    PEReadPsumInstr,
+    PEAddPsumInstr,
+)
 from src.memory import SPAD
 from src.data import Data
+from src.config import (
+    filter_settings,
+    image_settings,
+    filter_spad_settings,
+    image_spad_settings,
+    psum_spad_settings,
+)
 
 import numpy as np
 
@@ -39,22 +53,25 @@ class _ElementProc(mp.Process):
     _filter: SPAD
     _ifmap: SPAD
     _psum: SPAD
-    _inQueue: mp.Queue[Data]
-    _outQueue: mp.Queue[Data]
+    _inQueue: mp.Queue  # input queue of Data
+    _outQueue: mp.Queue # output queue of Data
 
     def __init__(
             self,
             id: int,
             inQueue: mp.Queue,
             outQueue: mp.Queue):
+        super().__init__()
         self._id = id
-        self._filter = SPAD(words=224, wordSize=16)
-        self._ifmap = SPAD(words=12, wordSize=16)
-        self._psum = SPAD(words=24, wordSize=16)
+        # self._filter = SPAD(words=224, wordSize=16)
+        # self._ifmap = SPAD(words=12, wordSize=16)
+        # self._psum = SPAD(words=24, wordSize=16)
+        self._filter = SPAD(**filter_spad_settings)
+        self._ifmap = SPAD(**image_spad_settings)
+        self._psum = SPAD(**psum_spad_settings)
         
         self._inQueue = inQueue
         self._outQueue = outQueue
-        
 
     @override
     def run(self):
@@ -65,19 +82,36 @@ class _ElementProc(mp.Process):
             input (mp.Queue[Data]): Input queue for receiving data.
             output (mp.Queue[Data]): Output queue for sending data.
         """
+
+        run = True
+
         # Process input data and produce output data
-        while True:
+        while run:
             data = self._inQueue.get()
-            if data.instr == Instruction.PE_WRITE_FILTER:
-                self._filter.write(..., data.data)
-            elif data.instr == Instruction.PE_WRITE_IFMAP:
-                self._ifmap.write(..., data.data)
-            elif data.instr == Instruction.PE_READ_PSUM:
-                psum_data = self._psum.read(...)
+            if data.instr == PEWriteFilterInstr:
+                self._filter.write(data.addr, data.data)
+            elif data.instr == PEWriteIfmapInstr:
+                self._ifmap.write(data.addr, data.data)
+            elif data.instr == PEReadPsumInstr:
+                psum_data = self._psum.read(data.addr)
                 self._outQueue.put(psum_data)
-            elif data.instr == Instruction.COMPUTE:
+            elif data.instr == PEWritePsumInstr:
+                self._psum.write(data.addr, data.data)
+            elif data.instr == PEAddPsumInstr:
+                psum = self._psum.read(data.addr)
+                self._psum.write(data.addr, psum + data.data)
+            elif data.instr == ComputeInstr:
                 self.compute()
-                self._outQueue.put(self._psum.read(...))  # Placeholder for actual result
+            elif data.instr == TerminateInstr:
+                self._psum.terminate()
+                self._filter.terminate()
+                self._ifmap.terminate()
+                
+                self._psum.close()
+                self._filter.close()
+                self._ifmap.close()
+
+                run = False
 
     def _conv1d(self, row, weight):
         # Perform 1D convolution logic
@@ -90,38 +124,9 @@ class _ElementProc(mp.Process):
             result[x] = np.sum(r)
         return result
 
-    def _conv2d(self, imageRow, filterWeight, imageNum, filterNum):
-        # Perform 2D convolution logic
-        result = np.zeros((imageRow.shape[0] - filterWeight.shape[0] + 1,
-                           imageRow.shape[1] - filterWeight.shape[1] + 1))
-
-        if filterNum == 1 and imageNum == 1:
-            return self._conv1d(imageRow, filterWeight)
-
-        if filterNum == 1:
-            pics = np.hsplit(imageRow, imageNum)
-
-            for x in pics:
-                rx = self._conv1d(x, filterWeight)
-                result[x] = rx
-
-            return result
-        
-        if imageNum == 1:
-            filterWeight = np.reshape(filterWeight, (int(filterWeight.shape[0] / filterNum), filterNum))
-            fits = np.array(filterWeight.T)
-
-            for x in fits:
-                rx = self._conv1d(imageRow, x)
-                result[x] = rx
-
-            result = result.T
-            result = np.reshape(result, (1, result.shape[0], result.shape[1]))
-            return result
-
-    def _conv(self, imageRow, filterWeight, imageNum, filterNum):
+    def _conv(self, imageRow, filterWeight):
         # Perform convolution logic
-        return self._conv2d(imageRow, filterWeight, imageNum, filterNum)
+        return self._conv1d(imageRow, filterWeight)
 
     def compute(self):
         # Perform computation logic
@@ -161,18 +166,19 @@ class PE:
     def start(self):
         self._element.start()
 
-    def join(self):
-        self._element.join()
-
     def put(self, data: Data):
         self.reader.put(data)
 
     def get(self) -> Data:
         return self.writer.get()
     
+    def join(self):
+        self._element.join()
+
     def terminate(self):
         self._element.terminate()
 
     def close(self):
+        self._element.close()
         self.reader.close()
         self.writer.close()

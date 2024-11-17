@@ -1,1 +1,2 @@
-from pe import PE
+from .pe import PE
+from .sa import SpatialArray

@@ -1,5 +1,7 @@
 from typing import List, override
 
+from abc import ABC, abstractmethod
+
 import multiprocessing as mp
 
 import numpy as np
@@ -7,7 +9,13 @@ import numpy as np
 import time
 from time import sleep
 
-from src.data import Data, Address
+from src.instr import (
+    BaseWriteInstr,
+    BaseReadInstr,
+    TerminateInstr,
+)
+from src.data import Data
+from src.addr import Address
 
 class _MemoryProc(mp.Process):
     """
@@ -25,8 +33,8 @@ class _MemoryProc(mp.Process):
         words(): Returns the number of words in memory.
         wordSize(): Returns the size of each word in memory.
     """
-    _queue_in: mp.Queue[Data]
-    _queue_out: mp.Queue[Data]
+    _queue_in: mp.Queue  # input queue of Data
+    _queue_out: mp.Queue # output queue of Data
 
     _read_latency: float
 
@@ -59,7 +67,10 @@ class _MemoryProc(mp.Process):
 
     @override
     def run(self):
-        while True:
+
+        run = True
+
+        while run:
             # Wait for a command from the main process
             command = self._queue_in.get()
             if command[0] == "w":
@@ -70,10 +81,14 @@ class _MemoryProc(mp.Process):
             elif command[0] == "r":
                 address = command[1]
                 with self._lock:
-                    data = self._bits[address]
+                    bits = self._bits[address]
+                data = float("".join(str(int(b)) for b in bits))
                 # Simulate read latency
                 sleep(self._read_latency)
                 self._queue_out.put(data)
+            elif command[0] == "t":
+                run = False
+
 class MemoryBlock:
     """
     Memory class for managing read and write operations.
@@ -142,6 +157,9 @@ class MemoryBlock:
     def write(self, address: int, data: int):
         self._inqueue.put(("w", address, data))
 
+    def is_empty(self):
+        return all(self._proc._bits.flatten() == 0)
+
     def start(self):
         self._proc.start()
 
@@ -171,7 +189,7 @@ class MemoryBlock:
     def energy(self):
         return self._energy
 
-class Memory:
+class Memory(ABC):
     """
     Memory class for managing multiple memory blocks.
 
@@ -198,13 +216,30 @@ class Memory:
     def __init__(self, blocks: List[MemoryBlock]):
         self._blocks = blocks
 
+    @abstractmethod
     def read(self, address: Address) -> int:
         # Implement read logic for multiple blocks
         pass
 
+    @abstractmethod
     def write(self, address: Address, data: np.ndarray):
         # Implement write logic for multiple blocks
         pass
+
+    def is_empty(self):
+        return all(block.is_empty() for block in self._blocks)
+
+    def terminate(self):
+        for block in self._blocks:
+            block.terminate()
+
+    def close(self):
+        for block in self._blocks:
+            block.close()
+
+    def join(self):
+        for block in self._blocks:
+            block.join()
 
     def __getitem__(self, index: int) -> MemoryBlock:
         return self._blocks[index]
@@ -243,6 +278,20 @@ class SPAD(Memory):
         block = MemoryBlock(words, wordSize, self.READ_LATENCY, self.ENERGY)
         super().__init__([block])
 
+    @override
+    def read(self, address: Address) -> int:
+        if address.shape != 2:
+            raise ValueError("Address must have 2 dimensions: (block, word)")
+        block, word = address
+        return self._blocks[block].read(word)
+    
+    @override
+    def write(self, address: Address, data: np.ndarray):
+        if address.shape != 2:
+            raise ValueError("Address must have 2 dimensions: (block, word)")
+        block, word = address
+        self._blocks[block].write(word, data)
+
 class GlobalBuffer(Memory):
     """
     Global buffer memory class.
@@ -257,6 +306,20 @@ class GlobalBuffer(Memory):
     def __init__(self, blocks: int = 25, blockSize: int = 4096, wordSize: int = 16):
         blocks = [MemoryBlock(blockSize, wordSize, self.READ_LATENCY, self.ENERGY) for _ in range(blocks)]
         super().__init__(blocks)
+
+    @override
+    def read(self, address: Address) -> int:
+        if address.shape != 2:
+            raise ValueError("Address must have 2 dimensions: (block, word)")
+        block, word = address
+        return self._blocks[block].read(word)
+    
+    @override
+    def write(self, address: Address, data: np.ndarray):
+        if address.shape != 2:
+            raise ValueError("Address must have 2 dimensions: (block, word)")
+        block, word = address
+        self._blocks[block].write(word, data)
 
 class DRAM(Memory):
     """

@@ -1,21 +1,32 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 from src.instr import BaseInstr
+from src.addr import Address
 
 import numpy as np
 
 class Data:
-    _instr: BaseInstr
-    _data: np.ndarray
+    _instr: BaseInstr   # instruction
+    _addr: Address      # address
+    _data: np.ndarray   # data array
 
-    def __init__(self, instr: int, data: Optional[int] = None):
+    def __init__(
+            self,
+            instr: BaseInstr,
+            addr: Optional[Address] = None,
+            data: Optional[np.ndarray] = None):
         self._instr = instr
+        self._addr = addr
         self._data = data
 
     @property
     def instr(self) -> BaseInstr:
         return self._instr
     
+    @property
+    def addr(self) -> Address:
+        return self._addr
+
     @property
     def data(self) -> np.ndarray:
         return self._data
@@ -37,5 +48,5 @@ class Data:
         return NotImplemented
     
     def __str__(self) -> str:
-        return f"Data(instr={self._instr}\n\tdata={self._data})"
+        return f"Data(instr={self._instr}\n\taddr={self._addr}\n\tdata={self._data})"
     
