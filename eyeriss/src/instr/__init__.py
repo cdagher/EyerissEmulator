@@ -1,7 +1,7 @@
 from abc import ABC
 from typing import List, Dict, override
 
-from src.data import Address
+from src.addr import Address
 
 class BaseInstr(ABC):
     _name: str
@@ -33,16 +33,24 @@ class BaseInstr(ABC):
     def __hash__(self):
         return hash(self._opcode)
 
-class BaseReadInstr(BaseInstr, ABC):
+class TerminateInstr(BaseInstr):
+    def __init__(self):
+        super().__init__("TERMINATE", 0)
+
+class BaseRWInstr(BaseInstr, ABC):
     _address: Address
 
     def __init__(self, pre: str, opcode: int, address: int):
-        super(BaseReadInstr, self).__init__(f"{pre}_READ", opcode)
+        super(BaseRWInstr, self).__init__(f"{pre}_READ", opcode)
         self._address = Address(address)
 
     @property
     def address(self):
         return self._address
+
+class BaseReadInstr(BaseRWInstr, ABC):
+    def __init__(self, pre: str, opcode: int, address: int):
+        super(BaseReadInstr, self).__init__(f"{pre}_READ", opcode, address)
 
     @override
     def __str__(self):
@@ -62,13 +70,11 @@ class BaseReadInstr(BaseInstr, ABC):
     def __hash__(self):
         return hash((self._opcode, self._address))
 
-class BaseWriteInstr(BaseInstr, ABC):
-    _address: Address
+class BaseWriteInstr(BaseRWInstr, ABC):
     _data: int
 
     def __init__(self, pre: str, opcode: int, address: int, data: int):
-        super(BaseWriteInstr, self).__init__(f"{pre}_WRITE", opcode)
-        self._address = Address(address)
+        super(BaseWriteInstr, self).__init__(f"{pre}_WRITE", opcode, address)
         self._data = data
 
     @property
@@ -117,33 +123,37 @@ class PEWritePsumInstr(BaseWriteInstr):
     def __init__(self, address: int, data: int):
         super().__init__("PE_PSUM", 7, address, data)
 
+class PEAddPsumInstr(BaseWriteInstr):
+    def __init__(self, address: int, data: int):
+        super().__init__("PE_PSUM", 8, address, data)
+
 class GLBReadFilterInstr(BaseReadInstr):
     def __init__(self, address: int):
-        super().__init__("GLB_FILTER", 8, address)
+        super().__init__("GLB_FILTER", 9, address)
         
 class GLBWriteFilterInstr(BaseWriteInstr):
     def __init__(self, address: int, data: int):
-        super().__init__("GLB_FILTER", 9, address, data)
+        super().__init__("GLB_FILTER", 10, address, data)
 
 class GLBReadIFMAPInstr(BaseReadInstr):
     def __init__(self, address: int):
-        super().__init__("GLB_IFMAP", 10, address)
+        super().__init__("GLB_IFMAP", 11, address)
 
 class GLBWriteIFMAPInstr(BaseWriteInstr):
     def __init__(self, address: int, data: int):
-        super().__init__("GLB_IFMAP", 11, address, data)
+        super().__init__("GLB_IFMAP", 12, address, data)
 
 class GLBReadPSUMInstr(BaseReadInstr):
     def __init__(self, address: int):
-        super().__init__("GLB_PSUM", 12, address)
+        super().__init__("GLB_PSUM", 13, address)
 
 class GLBWritePSUMInstr(BaseWriteInstr):
     def __init__(self, address: int, data: int):
-        super().__init__("GLB_PSUM", 13, address, data)
+        super().__init__("GLB_PSUM", 14, address, data)
 
 class GLBReadOfMapInstr(BaseReadInstr):
     def __init__(self, address: int):
-        super().__init__("GLB_OFMAP", 14, address)
+        super().__init__("GLB_OFMAP", 15, address)
 
 
 class InstructionSet:
@@ -151,11 +161,13 @@ class InstructionSet:
 
     def __init__(self):
         self._instructions = [
+            TerminateInstr(),
             ComputeInstr(),
             PEWriteFilterInstr(None, 0),   # Placeholder values
             PEWriteIfmapInstr(None, 0),    # Placeholder values
             PEReadPsumInstr(None),         # Placeholder values
             PEWritePsumInstr(None, 0),     # Placeholder values
+            PEAddPsumInstr(None, 0),       # Placeholder values
             GLBReadFilterInstr(None),      # Placeholder values
             GLBWriteFilterInstr(None, 0),  # Placeholder values
             GLBReadIFMAPInstr(None),       # Placeholder values
@@ -168,7 +180,7 @@ class InstructionSet:
     def get_instruction(self, opcode: int) -> BaseInstr:
         return self.instructions.get(opcode, None)
     
-    def list_instructions(self) -> Dict[BaseInstr]:
+    def list_instructions(self) -> List[BaseInstr]:
         return self._instructions
 
     def __str__(self):
