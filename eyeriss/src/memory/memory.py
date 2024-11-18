@@ -223,17 +223,17 @@ class Memory(ABC):
     def is_empty(self):
         return all(block.is_empty() for block in self._blocks)
 
-    def terminate(self):
-        for block in self._blocks:
-            block.terminate()
+    # def terminate(self):
+    #     for block in self._blocks:
+    #         block.terminate()
 
-    def close(self):
-        for block in self._blocks:
-            block.close()
+    # def close(self):
+    #     for block in self._blocks:
+    #         block.close()
 
-    def join(self):
-        for block in self._blocks:
-            block.join()
+    # def join(self):
+    #     for block in self._blocks:
+    #         block.join()
 
     def __getitem__(self, index: int) -> MemoryBlock:
         return self._blocks[index]

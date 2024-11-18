@@ -169,7 +169,7 @@ class Eyeriss:
             # for each PE in the row, send the psum to the previous row
             for j in range(self._noc.size[1]):
                 pe = self._noc[i, j]
-                pe(Data(PEReadPsumInstr(Address((0, 0)))))
+                # pe(Data(PEReadPsumInstr(Address((0, 0)))))
                 psum = pe(Data(PEReadPsumInstr(Address((0, 0)))))
                 dest = self._noc[i-1, j]
                 dest(Data(PEAddPsumInstr(Address((0, 0)), psum)))
@@ -180,7 +180,7 @@ class Eyeriss:
         nsums = min(conv_size, self._noc.size[1])
         for j in range(nsums):
             pe = self._noc[0, j]
-            pe(Data(PEReadPsumInstr(Address((0, 0)))))
+            # pe(Data(PEReadPsumInstr(Address((0, 0)))))
             psum = pe(Data(PEReadPsumInstr(Address((0, 0)))))
             psums.append(psum)
 
