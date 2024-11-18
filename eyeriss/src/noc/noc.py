@@ -66,22 +66,22 @@ class NoC:
     def gb(self):
         return self._gb
     
-    def start(self):
-        for pe in self:
-            pe.start()
+    # def start(self):
+    #     for pe in self:
+    #         pe.start()
 
-    def join(self):
-        for pe in self:
-            pe.join()
+    # def join(self):
+    #     for pe in self:
+    #         pe.join()
 
-    def terminate(self):
-        for pe in self:
-            pe.put(Data(TerminateInstr()))
-            pe.terminate()
+    # def terminate(self):
+    #     for pe in self:
+    #         pe.put(Data(TerminateInstr()))
+    #         pe.terminate()
 
-    def close(self):
-        for pe in self:
-            pe.close()
+    # def close(self):
+    #     for pe in self:
+    #         pe.close()
 
     def multicast(
             self,
@@ -96,23 +96,11 @@ class NoC:
         
         if to is not None:
             for pe in self:
-                pe.put(data)
+                pe(data)
 
         else:
             for pe in self:
-                pe.put(data)
-
-    def p2p(self, src: Tuple[int, int], dst: Tuple[int, int]):
-        """
-        Sends data from one PE to another.
-
-        Args:
-            src (Tuple[int, int]): Source PE coordinates.
-            dst (Tuple[int, int]): Destination PE coordinates.
-        """
-
-        data = self[src].get()
-        self[dst].put(data)
+                pe(data)
 
     def diagonal_connection(self, src: Tuple[int, int]) -> PE | None:
         """
