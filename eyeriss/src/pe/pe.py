@@ -20,8 +20,11 @@ from src.config import (
     image_spad_settings,
     psum_spad_settings,
 )
+from src.addr import Address
 
 import numpy as np
+
+import warnings
 
 
 class ControlUnit:
@@ -62,6 +65,13 @@ class _ElementProc(mp.Process):
             inQueue: mp.Queue,
             outQueue: mp.Queue):
         super().__init__()
+
+        warnings.warn(
+            "_ElementProc is deprecated and will be removed in a future version.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+
         self._id = id
         # self._filter = SPAD(words=224, wordSize=16)
         # self._ifmap = SPAD(words=12, wordSize=16)
@@ -158,10 +168,6 @@ class PE:
         close(): Closes the input and output queues.
     """
 
-    # _element: _ElementProc
-    # _input: mp.Queue
-    # _output: mp.Queue
-
     _id: int
 
     _filter: SPAD
@@ -174,48 +180,33 @@ class PE:
         self._ifmap = SPAD(**image_spad_settings)
         self._psum = SPAD(**psum_spad_settings)
 
-        # self.writer = mp.Queue()
-        # self.reader = mp.Queue()
-        # self._element = _ElementProc(id, self.writer, self.reader)
-
-    # def start(self):
-    #     self._element.start()
-
-    # def put(self, data: Data):
-    #     self.reader.put(data)
-
-    # def get(self) -> Data:
-    #     return self.writer.get()
-    
-    # def join(self):
-    #     self._element.join()
-
-    # def terminate(self):
-    #     self._element.terminate()
-
-    # def close(self):
-    #     self._element.close()
-    #     self.reader.close()
-    #     self.writer.close()
-
     @property
     def id(self):
         return self._id
+    
+    def filter(self) -> SPAD:
+        return self._filter
+    
+    def ifmap(self) -> SPAD:
+        return self._ifmap
+    
+    def psum(self) -> SPAD:
+        return self._psum
 
-    def _conv1d(self, row, weight):
+    def _conv1d(self, imageRow: np.ndarray, filterRow: np.ndarray):
         # Perform 1D convolution logic
-        result = np.zeros((self._ifmap.shape[0] - self._filter.shape[0] + 1,))
-        for x in range(0, len(row) - 1 + len(weight)):
-            y = x + len(weight)
-            if y > len(row):
+        result = np.zeros((imageRow.shape[0] - filterRow.shape[0] + 1,))
+        for x in range(0, len(imageRow) - 1 + len(filterRow)):
+            y = x + len(filterRow)
+            if y > len(imageRow):
                 break
-            r = row[x:y] * weight
+            r = imageRow[x:y] * filterRow
             result[x] = np.sum(r)
         return result
 
-    def _conv(self, imageRow, filterWeight):
+    def _conv(self, imageRow: np.ndarray, filterRow: np.ndarray):
         # Perform convolution logic
-        return self._conv1d(imageRow, filterWeight)
+        return self._conv1d(imageRow, filterRow)
 
     def compute(self):
         # Perform computation logic
@@ -223,36 +214,47 @@ class PE:
             print(f"PE {self._id}: IFMAP or filter is empty")
             return
         if self._psum.is_empty():
-            print(f"PE {self._id}: Running convolution")
-            psum = self._conv(self._ifmap.read((0, 0)), self._filter.read((0, 0)))
-            self._psum.write((0, 0), psum)
+            # print(f"PE {self._id}: Running convolution")
+            psum = self._conv(
+                self._ifmap.read(Address((0, 0))),
+                self._filter.read(Address((0, 0)))
+            )
+            self._psum.write(Address((0, 0)), psum)
 
     def __call__(self, data: Data):
-        # print(f"PE {self._id}: Received data {data}")
-        if data.instr == PEWriteFilterInstr:
-            self._filter.write(data.addr, data.data)
+        
+        instr = data.instr
+
+        if isinstance(instr, PEWriteFilterInstr):
+            self._filter.write(instr.address, instr.data)
             return None
         
-        elif data.instr == PEWriteIfmapInstr:
-            self._ifmap.write(data.addr, data.data)
+        elif isinstance(instr, PEWriteIfmapInstr):
+            self._ifmap.write(instr.address, instr.data)
             return None
         
-        elif data.instr == PEReadPsumInstr:
-            psum_data = self._psum.read(data.addr)
+        elif isinstance(instr, PEReadPsumInstr):
+            psum_data = self._psum.read(instr.address)
             return psum_data
         
-        elif data.instr == PEWritePsumInstr:
-            self._psum.write(data.addr, data.data)
+        elif isinstance(instr, PEWritePsumInstr):
+            self._psum.write(instr.address, instr.data)
             return None
         
-        elif data.instr == PEAddPsumInstr:
-            psum = self._psum.read(data.addr)
-            self._psum.write(data.addr, psum + data.data)
+        elif isinstance(instr, PEAddPsumInstr):
+            psum = self._psum.read(instr.address)
+            self._psum.write(instr.address, psum + instr.data)
             return None
         
-        elif data.instr == ComputeInstr:
+        elif isinstance(instr, ComputeInstr):
             self.compute()
             return None
         
-        elif data.instr == TerminateInstr:
+        elif isinstance(instr, TerminateInstr):
             return None
+        
+    def __str__(self):
+        return f"PE({self._id})"
+    
+    def __repr__(self):
+        return str(self)

@@ -10,6 +10,7 @@ from .config import (
 from .data import Data
 from .noc import NoC
 from .pe import PE
+from .addr import Address
 
 from enum import Enum
 
@@ -75,7 +76,7 @@ class Eyeriss:
         for i in range(frows):
             dest = [self._noc[i, j] for j in range(self._noc.size[1])]
             self._noc.multicast(
-                data=Data(PEWriteFilterInstr((i, 0), filter[i])),
+                data=Data(PEWriteFilterInstr(Address((0, 0)), filter[i])),
                 to=dest
             )
 
@@ -97,7 +98,7 @@ class Eyeriss:
         
         # fill PEs with zeros to clear previous data
         for pe in self._noc:
-            pe.put(Data(PEWriteIfmapInstr((0, 0), np.zeros(image.shape[1]))))
+            pe(Data(PEWriteIfmapInstr(Address((0, 0)), np.zeros(image.shape[1]))))
 
         # send image rows to the first column of PEs
         for i in range(min(irows, self._filter_size[0])):
@@ -109,7 +110,7 @@ class Eyeriss:
             
             # multicast the image row to the PEs in the destination list
             self._noc.multicast(
-                data=Data(PEWriteIfmapInstr((0, 0), image[i])),
+                data=Data(PEWriteIfmapInstr(Address((0, 0)), image[i])),
                 to=dest
             )
 
@@ -120,7 +121,7 @@ class Eyeriss:
 
         # image has more rows than PE array. Send remainder to the bottom row
         for i in range(self._filter_size[0], irows):
-            row = self._noc.size[0]
+            row = self._noc.size[0]-1
             col = i - self._noc.size[0]
             dest = [self._noc[row, col]]
 
@@ -129,7 +130,7 @@ class Eyeriss:
             dest.extend(diag)
 
             self._noc.multicast(
-                data=Data(PEWriteIfmapInstr((0, 0), image[i])),
+                data=Data(PEWriteIfmapInstr(Address((0, 0)), image[i])),
                 to=dest
             )
 
@@ -157,7 +158,8 @@ class Eyeriss:
 
         # compute the dot product of the filter and image
         for pe in self._noc:
-            pe.put(Data(ComputeInstr()))
+            # print(f"Sending compute istr to PE {pe.id}")
+            pe(Data(ComputeInstr()))
 
         # perform 2d convolution by computing the dot product of the filter and
         # image rows. Pass psums vertically to the previous row
@@ -167,17 +169,19 @@ class Eyeriss:
             # for each PE in the row, send the psum to the previous row
             for j in range(self._noc.size[1]):
                 pe = self._noc[i, j]
-                pe.put(Data(PEReadPsumInstr((0, 0))))
-                psum = pe.get()
+                pe(Data(PEReadPsumInstr(Address((0, 0)))))
+                psum = pe(Data(PEReadPsumInstr(Address((0, 0)))))
                 dest = self._noc[i-1, j]
-                dest.put(Data(PEAddPsumInstr((0, 0), psum)))
+                dest(Data(PEAddPsumInstr(Address((0, 0)), psum)))
 
         # get the final psums from the first row of PEs
         psums = []
-        for j in range(self._noc.size[1]):
+        conv_size = self._image_size[0] - self._filter_size[0] + 1
+        nsums = min(conv_size, self._noc.size[1])
+        for j in range(nsums):
             pe = self._noc[0, j]
-            pe.put(Data(PEReadPsumInstr((0, 0))))
-            psum = pe.get()
+            pe(Data(PEReadPsumInstr(Address((0, 0)))))
+            psum = pe(Data(PEReadPsumInstr(Address((0, 0)))))
             psums.append(psum)
 
         return np.array(psums)
@@ -219,15 +223,7 @@ class Eyeriss:
             filter: Optional[np.ndarray] = None
         ) -> Data:
 
-        self.compute(image, filter)
-        
-    def start(self):
-        self._noc.start()
-
-    def close(self):
-        self._noc.terminate()
-        self._noc.join()
-        self._noc.close()
+        return self.compute(image, filter)
 
 
 def relu(x):

@@ -108,51 +108,51 @@ class ComputeInstr(BaseInstr):
         super().__init__("COMPUTE", 1)
 
 class PEWriteFilterInstr(BaseWriteInstr):
-    def __init__(self, address: int, data: int):
+    def __init__(self, address: Address, data: int):
         super().__init__("PE_FILTER", 4, address, data)
 
 class PEWriteIfmapInstr(BaseWriteInstr):
-    def __init__(self, address: int, data: int):
+    def __init__(self, address: Address, data: int):
         super().__init__("PE_IFMAP", 5, address, data)
 
 class PEReadPsumInstr(BaseReadInstr):
-    def __init__(self, address: int):
+    def __init__(self, address: Address):
         super().__init__("PE_PSUM", 6, address)
 
 class PEWritePsumInstr(BaseWriteInstr):
-    def __init__(self, address: int, data: int):
+    def __init__(self, address: Address, data: int):
         super().__init__("PE_PSUM", 7, address, data)
 
 class PEAddPsumInstr(BaseWriteInstr):
-    def __init__(self, address: int, data: int):
+    def __init__(self, address: Address, data: int):
         super().__init__("PE_PSUM", 8, address, data)
 
 class GLBReadFilterInstr(BaseReadInstr):
-    def __init__(self, address: int):
+    def __init__(self, address: Address):
         super().__init__("GLB_FILTER", 9, address)
         
 class GLBWriteFilterInstr(BaseWriteInstr):
-    def __init__(self, address: int, data: int):
+    def __init__(self, address: Address, data: int):
         super().__init__("GLB_FILTER", 10, address, data)
 
 class GLBReadIFMAPInstr(BaseReadInstr):
-    def __init__(self, address: int):
+    def __init__(self, address: Address):
         super().__init__("GLB_IFMAP", 11, address)
 
 class GLBWriteIFMAPInstr(BaseWriteInstr):
-    def __init__(self, address: int, data: int):
+    def __init__(self, address: Address, data: int):
         super().__init__("GLB_IFMAP", 12, address, data)
 
 class GLBReadPSUMInstr(BaseReadInstr):
-    def __init__(self, address: int):
+    def __init__(self, address: Address):
         super().__init__("GLB_PSUM", 13, address)
 
 class GLBWritePSUMInstr(BaseWriteInstr):
-    def __init__(self, address: int, data: int):
+    def __init__(self, address: Address, data: int):
         super().__init__("GLB_PSUM", 14, address, data)
 
 class GLBReadOfMapInstr(BaseReadInstr):
-    def __init__(self, address: int):
+    def __init__(self, address: Address):
         super().__init__("GLB_OFMAP", 15, address)
 
 

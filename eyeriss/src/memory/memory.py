@@ -147,11 +147,12 @@ class MemoryBlock:
         self._read_latency = read_latency
         self._energy = energy
 
-        self._bits = np.zeros((words, wordSize), dtype=np.bool)
+        self._bits = np.zeros((words, wordSize), dtype=np.float32)
 
     def read(self, address: int) -> int:
-        bits = self._bits[address]
-        data = float("".join(str(int(b)) for b in bits))
+        # bits = self._bits[address]
+        # data = float("".join(str(int(b)) for b in bits))
+        data = self._bits[address]
         # Simulate read latency
         sleep(self._read_latency)
         return data
@@ -160,8 +161,8 @@ class MemoryBlock:
         return int(self.read(address), 2)
 
     def write(self, address: int, data: int):
-        bits = np.array(list(bin(data)[2:].zfill(self.wordSize())), dtype=np.bool)
-        self._bits[address] = bits
+        # bits = np.array(list(bin(data)[2:].zfill(self.wordSize())), dtype=np.bool)
+        self._bits[address] = data
 
     def is_empty(self):
         return all(self._bits.flatten() == 0)

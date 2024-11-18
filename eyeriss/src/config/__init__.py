@@ -25,15 +25,18 @@ image_settings: Dict = {
 
 filter_spad_settings: Dict = {
     "words": 1,
-    "wordSize": 96,
+    # "wordSize": 96,
+    "wordSize": 3,
 }
 
 image_spad_settings: Dict = {
     "words": 1,
-    "wordSize": 16384,
+    # "wordSize": 16384,
+    "wordSize": 512,
 }
 
 psum_spad_settings: Dict = {
     "words": 1,
-    "wordSize": 16320,
+    # "wordSize": 16320,
+    "wordSize": 510,
 }
