@@ -16,6 +16,7 @@ from src.instr import (
 )
 from src.data import Data
 from src.addr import Address
+import warnings
 
 class _MemoryProc(mp.Process):
     """
@@ -49,6 +50,11 @@ class _MemoryProc(mp.Process):
             queue_in: mp.Queue,
             queue_out: mp.Queue
         ):
+        warnings.warn(
+            "_MemoryProc is deprecated and will be removed in a future version.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         super().__init__()
         self._read_latency = read_latency
 
@@ -126,9 +132,7 @@ class MemoryBlock:
     _read_latency: float # read latency in seconds
     _energy: float       # energy in Joules
 
-    _proc: _MemoryProc
-    _inqueue: mp.Queue
-    _outqueue: mp.Queue
+    _bits: np.ndarray
 
     def __init__(
             self,
@@ -143,35 +147,24 @@ class MemoryBlock:
         self._read_latency = read_latency
         self._energy = energy
 
-        self._inqueue = mp.Queue()
-        self._outqueue = mp.Queue()
-        self._proc = _MemoryProc(words, wordSize, self._read_latency, self._inqueue, self._outqueue)
+        self._bits = np.zeros((words, wordSize), dtype=np.bool)
 
     def read(self, address: int) -> int:
-        self._inqueue.put(("r", address))
-        return self._outqueue.get()
+        bits = self._bits[address]
+        data = float("".join(str(int(b)) for b in bits))
+        # Simulate read latency
+        sleep(self._read_latency)
+        return data
     
     def read_int(self, address: int) -> int:
         return int(self.read(address), 2)
 
     def write(self, address: int, data: int):
-        self._inqueue.put(("w", address, data))
+        bits = np.array(list(bin(data)[2:].zfill(self.wordSize())), dtype=np.bool)
+        self._bits[address] = bits
 
     def is_empty(self):
-        return all(self._proc._bits.flatten() == 0)
-
-    def start(self):
-        self._proc.start()
-
-    def join(self):
-        self._proc.join()
-
-    def terminate(self):
-        self._proc.terminate()
-
-    def close(self):
-        self._inqueue.close()
-        self._outqueue.close()
+        return all(self._bits.flatten() == 0)
     
     @property
     def shape(self):
